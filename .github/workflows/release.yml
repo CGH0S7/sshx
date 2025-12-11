@@ -20,10 +20,6 @@ jobs:
             target: x86_64-unknown-linux-gnu
             bin_name: sshx
             archive_template: sshx-linux-amd64.tar.gz
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            bin_name: sshx
-            archive_template: sshx-macos-amd64.tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             bin_name: sshx.exe
@@ -56,7 +52,7 @@ jobs:
           cp target/${{ matrix.target }}/release/${{ matrix.bin_name }} .
 
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            7z a "$ARCHIVE_NAME" "${{ matrix.bin_name }}"
+            tar -acvf "$ARCHIVE_NAME" "${{ matrix.bin_name }}"
           else
             tar -czvf "$ARCHIVE_NAME" "${{ matrix.bin_name }}"
           fi

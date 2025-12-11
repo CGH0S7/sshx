@@ -66,19 +66,19 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
             match &mut app.input_mode {
                 InputMode::Normal => match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                    KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => return Ok(()),
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => return Ok(()),
                     KeyCode::Down | KeyCode::Tab | KeyCode::Char('j') => app.next(),
                     KeyCode::Up | KeyCode::BackTab | KeyCode::Char('k') => app.previous(),
                     KeyCode::Char('n') => {
-                        if key.modifiers.contains(KeyModifiers::SHIFT) {
-                            // SSH Copy ID
-                            if let Some(idx) = app.state.selected() {
-                                let server = &app.servers[idx];
-                                let args = server.to_copy_id_args();
-                                run_external_command(terminal, "ssh-copy-id", &args)?;
-                            }
-                        } else {
-                            // Add new server
-                            app.input_mode = InputMode::Adding(AddingState::new());
+                        app.input_mode = InputMode::Adding(AddingState::new());
+                    }
+                    KeyCode::Char('c') => {
+                        // SSH Copy ID 
+                        if let Some(idx) = app.state.selected() {
+                            let server = &app.servers[idx];
+                            let args = server.to_copy_id_args();
+                            run_external_command(terminal, "ssh-copy-id", &args)?;
                         }
                     }
                     KeyCode::Char('d') => {

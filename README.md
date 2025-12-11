@@ -15,7 +15,7 @@
 
 ### Prerequisites
 
-- [Rust](https://www.rust-lang.org/tools/install) (cargo)
+- [Rust Toolchain](https://www.rust-lang.org/tools/install) (cargo)
 - `ssh` client
 - `mosh` (optional, for mosh support)
 - `ssh-copy-id` (optional, for key copying)
@@ -24,18 +24,13 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/sshx.git
+   git clone https://github.com/CGH0S7/sshx.git
    cd sshx
    ```
 
-2. Build and run:
+2. Build:
    ```bash
-   cargo run --release
-   ```
-
-   Or install it locally:
-   ```bash
-   cargo install --path .
+   cargo build --release
    ```
 
 ## Usage
@@ -47,7 +42,7 @@ Start the application by running `sshx` (if installed) or `cargo run`.
 **Navigation & General:**
 - `j` / `Down` / `Tab`: Select next server
 - `k` / `Up` / `Shift+Tab`: Select previous server
-- `q` / `Esc`: Quit application
+- `q` / `Esc` / `Ctrl+c` / `Ctrl + d`: Quit application
 
 **Actions:**
 - `Enter`: Connect to selected server via `ssh`

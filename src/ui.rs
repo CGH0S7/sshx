@@ -33,7 +33,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     // Help text
     let help_text = match app.input_mode {
-        InputMode::Normal => "Enter: SSH | s: SFTP | m: Mosh | n: New | Shift+n: Copy ID | i: Edit | d: Delete | q: Quit",
+        InputMode::Normal => "Enter: SSH | s: SFTP | m: Mosh | n: New | c: Copy ID | i: Edit | d: Delete | q: Quit",
         InputMode::Adding(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
         InputMode::Editing(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
     };
