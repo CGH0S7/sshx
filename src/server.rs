@@ -41,5 +41,15 @@ impl Server {
         args.push(self.address());
         args
     }
+
+    pub fn to_sftp_args(&self) -> Vec<String> {
+        let mut args = vec![];
+        if !self.port.is_empty() {
+            args.push("-P".to_string());
+            args.push(self.port.clone());
+        }
+        args.push(self.address());
+        args
+    }
 }
 

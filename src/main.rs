@@ -99,6 +99,14 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                             run_external_command(terminal, "mosh", &args)?;
                         }
                     }
+                    KeyCode::Char('s') => {
+                        // SFTP
+                        if let Some(idx) = app.state.selected() {
+                            let server = &app.servers[idx];
+                            let args = server.to_sftp_args();
+                            run_external_command(terminal, "sftp", &args)?;
+                        }
+                    }
                     KeyCode::Enter => {
                         // SSH
                         if let Some(idx) = app.state.selected() {

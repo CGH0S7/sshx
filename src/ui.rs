@@ -33,7 +33,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     // Help text
     let help_text = match app.input_mode {
-        InputMode::Normal => "Enter: SSH Connect | m: Mosh Connect | n: New | Shift+n: Copy ID | i: Edit | d: Delete | q: Quit",
+        InputMode::Normal => "Enter: SSH | s: SFTP | m: Mosh | n: New | Shift+n: Copy ID | i: Edit | d: Delete | q: Quit",
         InputMode::Adding(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
         InputMode::Editing(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
     };
@@ -113,32 +113,6 @@ fn render_connection_form(f: &mut Frame, title: &str, field_idx: usize, values: 
             );
         }
     }
-}
-
-pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Percentage((100 - percent_y) / 2),
-                Constraint::Percentage(percent_y),
-                Constraint::Percentage((100 - percent_y) / 2),
-            ]
-            .as_ref(),
-        )
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage((100 - percent_x) / 2),
-                Constraint::Percentage(percent_x),
-                Constraint::Percentage((100 - percent_x) / 2),
-            ]
-            .as_ref(),
-        )
-        .split(popup_layout[1])[1]
 }
 
 fn centered_fixed_rect(width_percent: u16, height: u16, r: Rect) -> Rect {
