@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin_name: sshx
+            archive_template: sshx-linux-amd64.tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bin_name: sshx
+            archive_template: sshx-macos-amd64.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin_name: sshx.exe
+            archive_template: sshx-windows-amd64.zip
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: get_version
+        shell: bash
+        run: echo "VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\/v//')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          ARCHIVE_NAME="${{ matrix.archive_template }}"
+          ARCHIVE_NAME="${ARCHIVE_NAME//VERSION/$VERSION}"
+
+          cp target/${{ matrix.target }}/release/${{ matrix.bin_name }} .
+
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            7z a "$ARCHIVE_NAME" "${{ matrix.bin_name }}"
+          else
+            tar -czvf "$ARCHIVE_NAME" "${{ matrix.bin_name }}"
+          fi
+          echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> "$GITHUB_ENV"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ env.ARCHIVE_NAME }}
