@@ -56,7 +56,7 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
     loop {
         // Hide cursor in normal mode, show in input/edit mode
         match app.input_mode {
-            InputMode::Normal => terminal.hide_cursor()?,
+            InputMode::Normal | InputMode::ConfirmDelete(_) => terminal.hide_cursor()?,
             InputMode::Adding(_) | InputMode::Editing(_) => terminal.show_cursor()?,
         }
         
@@ -82,7 +82,10 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                         }
                     }
                     KeyCode::Char('d') => {
-                        app.delete_current();
+                        // 进入删除确认模式
+                        if let Some(idx) = app.state.selected() {
+                            app.input_mode = InputMode::ConfirmDelete(idx);
+                        }
                     }
                     KeyCode::Char('i') => {
                         // Edit server
@@ -125,6 +128,7 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                             1 => state.user.push(c),
                             2 => state.host.push(c),
                             3 => state.port.push(c),
+                            4 => state.jump_host.push(c),
                             _ => {}
                         }
                     }
@@ -134,11 +138,12 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                             1 => { state.user.pop(); },
                             2 => { state.host.pop(); },
                             3 => { state.port.pop(); },
+                            4 => { state.jump_host.pop(); },
                             _ => {}
                         }
                     }
                     KeyCode::Tab | KeyCode::Down => {
-                        if state.field_idx < 3 {
+                        if state.field_idx < 4 {
                             state.field_idx += 1;
                         } else {
                             state.field_idx = 0;
@@ -148,7 +153,7 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                         if state.field_idx > 0 {
                             state.field_idx -= 1;
                         } else {
-                            state.field_idx = 3;
+                            state.field_idx = 4;
                         }
                     }
                     KeyCode::Enter => {
@@ -159,6 +164,7 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                                 user: if state.user.is_empty() { "root".to_string() } else { state.user.clone() },
                                 host: state.host.clone(),
                                 port: if state.port.is_empty() { "22".to_string() } else { state.port.clone() },
+                                jump_host: state.jump_host.clone(),
                             };
                             app.servers[state.server_index] = updated_server;
                             let _ = app.save();
@@ -175,6 +181,7 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                             1 => state.user.push(c),
                             2 => state.host.push(c),
                             3 => state.port.push(c),
+                            4 => state.jump_host.push(c),
                             _ => {}
                         }
                     }
@@ -184,11 +191,12 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                             1 => { state.user.pop(); },
                             2 => { state.host.pop(); },
                             3 => { state.port.pop(); },
+                            4 => { state.jump_host.pop(); },
                             _ => {}
                         }
                     }
                     KeyCode::Tab | KeyCode::Down => {
-                        if state.field_idx < 3 {
+                        if state.field_idx < 4 {
                             state.field_idx += 1;
                         } else {
                             state.field_idx = 0;
@@ -198,7 +206,7 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                         if state.field_idx > 0 {
                             state.field_idx -= 1;
                         } else {
-                            state.field_idx = 3;
+                            state.field_idx = 4;
                         }
                     }
                     KeyCode::Enter => {
@@ -209,12 +217,32 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                                 user: if state.user.is_empty() { "root".to_string() } else { state.user.clone() },
                                 host: state.host.clone(),
                                 port: if state.port.is_empty() { "22".to_string() } else { state.port.clone() },
+                                jump_host: state.jump_host.clone(),
                             };
                             app.servers.push(new_server);
                             let _ = app.save();
                             app.state.select(Some(app.servers.len() - 1));
                             app.input_mode = InputMode::Normal;
                         }
+                    }
+                    _ => {}
+                },
+                InputMode::ConfirmDelete(idx) => match key.code {
+                    KeyCode::Char('y') | KeyCode::Char('Y') => {
+                        let idx = *idx;
+                        app.input_mode = InputMode::Normal;
+                        if idx < app.servers.len() {
+                            app.servers.remove(idx);
+                            if app.servers.is_empty() {
+                                app.state.select(None);
+                            } else if idx >= app.servers.len() {
+                                app.state.select(Some(app.servers.len() - 1));
+                            }
+                            let _ = app.save();
+                        }
+                    }
+                    KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
                     }
                     _ => {}
                 },

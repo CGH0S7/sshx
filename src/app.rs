@@ -8,6 +8,7 @@ pub enum InputMode {
     Normal,
     Adding(AddingState),
     Editing(EditingState),
+    ConfirmDelete(usize), // 存储要删除的服务器索引
 }
 
 pub struct AddingState {
@@ -16,6 +17,7 @@ pub struct AddingState {
     pub user: String,
     pub host: String,
     pub port: String,
+    pub jump_host: String,
 }
 
 impl AddingState {
@@ -26,6 +28,7 @@ impl AddingState {
             user: String::new(),
             host: String::new(),
             port: "22".to_string(),
+            jump_host: String::new(),
         }
     }
 }
@@ -37,6 +40,7 @@ pub struct EditingState {
     pub user: String,
     pub host: String,
     pub port: String,
+    pub jump_host: String,
 }
 
 impl EditingState {
@@ -48,6 +52,7 @@ impl EditingState {
             user: server.user.clone(),
             host: server.host.clone(),
             port: server.port.clone(),
+            jump_host: server.jump_host.clone(),
         }
     }
 }
@@ -126,19 +131,5 @@ impl App {
             None => 0,
         };
         self.state.select(Some(i));
-    }
-
-    pub fn delete_current(&mut self) {
-        if let Some(i) = self.state.selected() {
-            if i < self.servers.len() {
-                self.servers.remove(i);
-                if self.servers.is_empty() {
-                    self.state.select(None);
-                } else if i >= self.servers.len() {
-                    self.state.select(Some(self.servers.len() - 1));
-                }
-                let _ = self.save();
-            }
-        }
     }
 }
