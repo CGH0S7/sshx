@@ -37,6 +37,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         InputMode::Adding(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
         InputMode::Editing(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
         InputMode::ConfirmDelete(_) => "y: Confirm Delete | n/Esc: Cancel",
+        InputMode::ShowMessage(_) => "Press Enter, Esc or Space to close",
     };
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
@@ -69,6 +70,11 @@ pub fn ui(f: &mut Frame, app: &mut App) {
             let server_name = &app.servers[*idx].name;
             render_confirm_dialog(f, server_name);
         }
+    }
+
+    // Popup for Message
+    if let InputMode::ShowMessage(msg) = &app.input_mode {
+        render_message_dialog(f, msg);
     }
 }
 
@@ -174,6 +180,33 @@ fn render_confirm_dialog(f: &mut Frame, server_name: &str) {
     f.render_widget(text, inner[0]);
 
     let hint = Paragraph::new("Press 'y' to confirm, 'n' or Esc to cancel")
+        .style(Style::default().fg(Color::Gray));
+    f.render_widget(hint, inner[1]);
+}
+
+fn render_message_dialog(f: &mut Frame, message: &str) {
+    let size = f.size();
+    let lines: Vec<&str> = message.lines().collect();
+    let height = (lines.len() as u16 + 4).min(20);
+    let area = centered_fixed_rect(60, height, size);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Notice ")
+        .style(Style::default().fg(Color::Yellow));
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
+        .split(area);
+
+    let text = Paragraph::new(message).style(Style::default().fg(Color::White));
+    f.render_widget(text, inner[0]);
+
+    let hint = Paragraph::new("Press Enter, Esc or Space to close")
         .style(Style::default().fg(Color::Gray));
     f.render_widget(hint, inner[1]);
 }

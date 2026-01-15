@@ -56,7 +56,7 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
     loop {
         // Hide cursor in normal mode, show in input/edit mode
         match app.input_mode {
-            InputMode::Normal | InputMode::ConfirmDelete(_) => terminal.hide_cursor()?,
+            InputMode::Normal | InputMode::ConfirmDelete(_) | InputMode::ShowMessage(_) => terminal.hide_cursor()?,
             InputMode::Adding(_) | InputMode::Editing(_) => terminal.show_cursor()?,
         }
         
@@ -98,8 +98,14 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                         // Mosh
                         if let Some(idx) = app.state.selected() {
                             let server = &app.servers[idx];
-                            let args = server.to_mosh_args();
-                            run_external_command(terminal, "mosh", &args)?;
+                            if !server.jump_host.is_empty() {
+                                app.input_mode = InputMode::ShowMessage(
+                                    "Mosh does not support jump host connections.\nPlease use SSH (Enter) instead.".to_string()
+                                );
+                            } else {
+                                let args = server.to_mosh_args();
+                                run_external_command(terminal, "mosh", &args)?;
+                            }
                         }
                     }
                     KeyCode::Char('s') => {
@@ -242,6 +248,12 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                         }
                     }
                     KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                    }
+                    _ => {}
+                },
+                InputMode::ShowMessage(_) => match key.code {
+                    KeyCode::Enter | KeyCode::Esc | KeyCode::Char(' ') => {
                         app.input_mode = InputMode::Normal;
                     }
                     _ => {}

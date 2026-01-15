@@ -52,6 +52,11 @@ impl Server {
 
     pub fn to_copy_id_args(&self) -> Vec<String> {
         let mut args = vec![];
+        // 添加跳板机参数
+        if !self.jump_host.is_empty() {
+            args.push("-o".to_string());
+            args.push(format!("ProxyJump={}", self.jump_host));
+        }
         if !self.port.is_empty() {
             args.push("-p".to_string());
             args.push(self.port.clone());

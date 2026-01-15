@@ -9,6 +9,7 @@ pub enum InputMode {
     Adding(AddingState),
     Editing(EditingState),
     ConfirmDelete(usize), // 存储要删除的服务器索引
+    ShowMessage(String), // 显示提示信息
 }
 
 pub struct AddingState {
