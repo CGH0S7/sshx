@@ -5,7 +5,7 @@ mod command;
 
 use anyhow::Result;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -63,6 +63,10 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
         terminal.draw(|f| ui(f, app))?;
 
         if let Event::Key(key) = event::read()? {
+            // Windows会同时发送Press和Release事件，只处理Press
+            if key.kind != KeyEventKind::Press {
+                continue;
+            }
             match &mut app.input_mode {
                 InputMode::Normal => match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
