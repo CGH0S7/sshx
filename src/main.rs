@@ -19,7 +19,7 @@ use std::{
 };
 
 use app::{App, InputMode, AddingState, EditingState};
-use command::run_external_command;
+use command::{run_external_command, run_ssh_copy_id, is_command_available};
 use ui::ui;
 use server::Server;
 
@@ -74,11 +74,11 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                         app.input_mode = InputMode::Adding(AddingState::new());
                     }
                     KeyCode::Char('c') => {
-                        // SSH Copy ID 
+                        // SSH Copy ID
                         if let Some(idx) = app.state.selected() {
                             let server = &app.servers[idx];
                             let args = server.to_copy_id_args();
-                            run_external_command(terminal, "ssh-copy-id", &args)?;
+                            run_ssh_copy_id(terminal, &args)?;
                         }
                     }
                     KeyCode::Char('d') => {
@@ -97,14 +97,21 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                     KeyCode::Char('m') => {
                         // Mosh
                         if let Some(idx) = app.state.selected() {
-                            let server = &app.servers[idx];
-                            if !server.jump_host.is_empty() {
+                            // Check if mosh is installed
+                            if !is_command_available("mosh") {
                                 app.input_mode = InputMode::ShowMessage(
-                                    "Mosh does not support jump host connections.\nPlease use SSH (Enter) instead.".to_string()
+                                    "Mosh is not installed on your system.\n\nPlease install mosh first:\n- Linux: sudo apt install mosh / sudo yum install mosh\n- macOS: brew install mosh\n- Windows: Install via package manager or from mosh.org".to_string()
                                 );
                             } else {
-                                let args = server.to_mosh_args();
-                                run_external_command(terminal, "mosh", &args)?;
+                                let server = &app.servers[idx];
+                                if !server.jump_host.is_empty() {
+                                    app.input_mode = InputMode::ShowMessage(
+                                        "Mosh does not support jump host connections.\nPlease use SSH (Enter) instead.".to_string()
+                                    );
+                                } else {
+                                    let args = server.to_mosh_args();
+                                    run_external_command(terminal, "mosh", &args)?;
+                                }
                             }
                         }
                     }
