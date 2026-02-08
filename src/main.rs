@@ -68,21 +68,36 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                 continue;
             }
             match &mut app.input_mode {
-                InputMode::Normal => match key.code {
+                InputMode::Normal => {
+                    // Reset pending_g on any key that isn't 'g'
+                    if key.code != KeyCode::Char('g') {
+                        app.pending_g = false;
+                    }
+                    match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                     KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => return Ok(()),
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => return Ok(()),
                     KeyCode::Down | KeyCode::Tab | KeyCode::Char('j') => app.next(),
                     KeyCode::Up | KeyCode::BackTab | KeyCode::Char('k') => app.previous(),
+                    KeyCode::Char('G') => app.select_last(),
+                    KeyCode::Char('g') => {
+                        if app.pending_g {
+                            app.select_first();
+                            app.pending_g = false;
+                        } else {
+                            app.pending_g = true;
+                        }
+                    }
                     KeyCode::Char('n') => {
                         app.input_mode = InputMode::Adding(AddingState::new());
                     }
                     KeyCode::Char('c') => {
                         // SSH Copy ID
                         if let Some(idx) = app.state.selected() {
-                            let server = &app.servers[idx];
+                            let server = app.servers[idx].clone();
                             let args = server.to_copy_id_args();
                             run_ssh_copy_id(terminal, &args)?;
+                            app.set_last_connected(&server);
                         }
                     }
                     KeyCode::Char('d') => {
@@ -107,7 +122,7 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                                     "Mosh is not installed on your system.\n\nPlease install mosh first:\n- Linux: sudo apt install mosh / sudo yum install mosh\n- macOS: brew install mosh\n- Windows: Install via package manager or from mosh.org".to_string()
                                 );
                             } else {
-                                let server = &app.servers[idx];
+                                let server = app.servers[idx].clone();
                                 if !server.jump_host.is_empty() {
                                     app.input_mode = InputMode::ShowMessage(
                                         "Mosh does not support jump host connections.\nPlease use SSH (Enter) instead.".to_string()
@@ -115,6 +130,7 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                                 } else {
                                     let args = server.to_mosh_args();
                                     run_external_command(terminal, "mosh", &args)?;
+                                    app.set_last_connected(&server);
                                 }
                             }
                         }
@@ -122,20 +138,23 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                     KeyCode::Char('s') => {
                         // SFTP
                         if let Some(idx) = app.state.selected() {
-                            let server = &app.servers[idx];
+                            let server = app.servers[idx].clone();
                             let args = server.to_sftp_args();
                             run_external_command(terminal, "sftp", &args)?;
+                            app.set_last_connected(&server);
                         }
                     }
                     KeyCode::Enter => {
                         // SSH
                         if let Some(idx) = app.state.selected() {
-                            let server = &app.servers[idx];
+                            let server = app.servers[idx].clone();
                             let args = server.to_ssh_args();
                             run_external_command(terminal, "ssh", &args)?;
+                            app.set_last_connected(&server);
                         }
                     }
                     _ => {}
+                    }
                 },
                 InputMode::Editing(state) => match key.code {
                     KeyCode::Esc => app.input_mode = InputMode::Normal,
