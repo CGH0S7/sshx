@@ -17,6 +17,30 @@ pub enum InputMode {
     Editing(EditingState),
     ConfirmDelete(usize), // 存储要删除的服务器索引
     ShowMessage(String), // 显示提示信息
+    BroadcastCommand(BroadcastState),
+}
+
+pub struct BroadcastState {
+    pub phase: BroadcastPhase,
+    pub command: String,
+    pub selected: Vec<bool>, // one bool per server
+    pub cursor: usize,       // highlighted server in selection list
+}
+
+pub enum BroadcastPhase {
+    EnterCommand,
+    SelectServers,
+}
+
+impl BroadcastState {
+    pub fn new(server_count: usize) -> Self {
+        Self {
+            phase: BroadcastPhase::EnterCommand,
+            command: String::new(),
+            selected: vec![false; server_count],
+            cursor: 0,
+        }
+    }
 }
 
 pub struct AddingState {

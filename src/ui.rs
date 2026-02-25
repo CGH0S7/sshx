@@ -5,7 +5,8 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{App, InputMode};
+use crate::app::{App, InputMode, BroadcastPhase};
+use crate::server::Server;
 
 pub fn ui(f: &mut Frame, app: &mut App) {
     let size = f.size();
@@ -32,12 +33,16 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     f.render_stateful_widget(list, chunks[0], &mut app.state);
 
     // Help text
-    let help_text = match app.input_mode {
-        InputMode::Normal => "Enter: SSH | s: SFTP | m: Mosh | n: New | c: Copy ID | i: Edit | d: Delete | q: Quit",
+    let help_text = match &app.input_mode {
+        InputMode::Normal => "Enter: SSH | s: SFTP | m: Mosh | p: Broadcast | n: New | c: Copy ID | i: Edit | d: Delete | q: Quit",
         InputMode::Adding(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
         InputMode::Editing(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
         InputMode::ConfirmDelete(_) => "y: Confirm Delete | n/Esc: Cancel",
         InputMode::ShowMessage(_) => "Press Enter, Esc or Space to close",
+        InputMode::BroadcastCommand(s) => match s.phase {
+            BroadcastPhase::EnterCommand => "Enter: Next | Esc: Cancel",
+            BroadcastPhase::SelectServers => "Space: Toggle | j/k: Move | Enter: Execute | Esc: Cancel",
+        },
     };
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
@@ -75,6 +80,18 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     // Popup for Message
     if let InputMode::ShowMessage(msg) = &app.input_mode {
         render_message_dialog(f, msg);
+    }
+
+    // Popup for Broadcast Command
+    if let InputMode::BroadcastCommand(state) = &app.input_mode {
+        match state.phase {
+            BroadcastPhase::EnterCommand => {
+                render_broadcast_command_input(f, &state.command);
+            }
+            BroadcastPhase::SelectServers => {
+                render_broadcast_server_select(f, &app.servers, &state.selected, state.cursor);
+            }
+        }
     }
 }
 
@@ -207,6 +224,80 @@ fn render_message_dialog(f: &mut Frame, message: &str) {
     f.render_widget(text, inner[0]);
 
     let hint = Paragraph::new("Press Enter, Esc or Space to close")
+        .style(Style::default().fg(Color::Gray));
+    f.render_widget(hint, inner[1]);
+}
+
+fn render_broadcast_command_input(f: &mut Frame, command: &str) {
+    let size = f.size();
+    let area = centered_fixed_rect(60, 7, size);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Broadcast Command - Enter Command ")
+        .style(Style::default().fg(Color::Cyan));
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([Constraint::Length(3), Constraint::Length(1)].as_ref())
+        .split(area);
+
+    let input = Paragraph::new(command)
+        .style(Style::default().fg(Color::Yellow))
+        .block(Block::default().borders(Borders::ALL).title("Command"));
+    f.render_widget(input, inner[0]);
+
+    // Show cursor at end of input
+    f.set_cursor(inner[0].x + command.len() as u16 + 1, inner[0].y + 1);
+
+    let hint = Paragraph::new("Enter: confirm | Esc: cancel")
+        .style(Style::default().fg(Color::Gray));
+    f.render_widget(hint, inner[1]);
+}
+
+fn render_broadcast_server_select(f: &mut Frame, servers: &[Server], selected: &[bool], cursor: usize) {
+    let size = f.size();
+    let height = (servers.len() as u16 + 5).min(size.height.saturating_sub(4));
+    let area = centered_fixed_rect(60, height, size);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Broadcast Command - Select Servers ")
+        .style(Style::default().fg(Color::Cyan));
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
+        .split(area);
+
+    let items: Vec<ListItem> = servers
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let check = if selected[i] { "[x]" } else { "[ ]" };
+            let content = format!("{} {} ({}) - {}:{}", check, s.name, s.user, s.host, s.port);
+            let style = if i == cursor {
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            } else if selected[i] {
+                Style::default().fg(Color::Green)
+            } else {
+                Style::default()
+            };
+            ListItem::new(content).style(style)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(Block::default());
+    f.render_widget(list, inner[0]);
+
+    let hint = Paragraph::new("Space: toggle | j/k: move | Enter: execute | Esc: cancel")
         .style(Style::default().fg(Color::Gray));
     f.render_widget(hint, inner[1]);
 }

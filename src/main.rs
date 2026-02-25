@@ -18,7 +18,7 @@ use std::{
     io,
 };
 
-use app::{App, InputMode, AddingState, EditingState};
+use app::{App, InputMode, AddingState, EditingState, BroadcastState, BroadcastPhase};
 use command::{run_external_command, run_ssh_copy_id, is_command_available};
 use ui::ui;
 use server::Server;
@@ -58,6 +58,10 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
         match app.input_mode {
             InputMode::Normal | InputMode::ConfirmDelete(_) | InputMode::ShowMessage(_) => terminal.hide_cursor()?,
             InputMode::Adding(_) | InputMode::Editing(_) => terminal.show_cursor()?,
+            InputMode::BroadcastCommand(ref s) => match s.phase {
+                BroadcastPhase::EnterCommand => terminal.show_cursor()?,
+                BroadcastPhase::SelectServers => terminal.hide_cursor()?,
+            },
         }
         
         terminal.draw(|f| ui(f, app))?;
@@ -151,6 +155,13 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                             let args = server.to_ssh_args();
                             run_external_command(terminal, "ssh", &args)?;
                             app.set_last_connected(&server);
+                        }
+                    }
+                    KeyCode::Char('p') => {
+                        if !app.servers.is_empty() {
+                            app.input_mode = InputMode::BroadcastCommand(
+                                BroadcastState::new(app.servers.len())
+                            );
                         }
                     }
                     _ => {}
@@ -287,6 +298,54 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                         app.input_mode = InputMode::Normal;
                     }
                     _ => {}
+                },
+                InputMode::BroadcastCommand(state) => match state.phase {
+                    BroadcastPhase::EnterCommand => match key.code {
+                        KeyCode::Esc => app.input_mode = InputMode::Normal,
+                        KeyCode::Char(c) => state.command.push(c),
+                        KeyCode::Backspace => { state.command.pop(); }
+                        KeyCode::Enter => {
+                            if !state.command.is_empty() {
+                                state.phase = BroadcastPhase::SelectServers;
+                            }
+                        }
+                        _ => {}
+                    },
+                    BroadcastPhase::SelectServers => match key.code {
+                        KeyCode::Esc => app.input_mode = InputMode::Normal,
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            if state.cursor + 1 < app.servers.len() {
+                                state.cursor += 1;
+                            }
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            if state.cursor > 0 {
+                                state.cursor -= 1;
+                            }
+                        }
+                        KeyCode::Char(' ') => {
+                            let idx = state.cursor;
+                            state.selected[idx] = !state.selected[idx];
+                        }
+                        KeyCode::Enter => {
+                            let command = state.command.clone();
+                            let targets: Vec<usize> = state.selected.iter()
+                                .enumerate()
+                                .filter(|(_, &sel)| sel)
+                                .map(|(i, _)| i)
+                                .collect();
+                            app.input_mode = InputMode::Normal;
+                            for idx in targets {
+                                let server = app.servers[idx].clone();
+                                let mut args = server.to_ssh_args();
+                                // -t forces pseudo-terminal allocation for the remote command
+                                args.insert(0, "-t".to_string());
+                                args.push(command.clone());
+                                run_external_command(terminal, "ssh", &args)?;
+                            }
+                        }
+                        _ => {}
+                    },
                 },
             }
         }
