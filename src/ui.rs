@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Clear},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Clear, ListState},
     Frame,
 };
 
@@ -25,8 +25,9 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         })
         .collect();
 
+    let title = format!(" SSHX - Servers [{}] ", app.current_profile);
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" SSHX - Servers "))
+        .block(Block::default().borders(Borders::ALL).title(title))
         .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow))
         .highlight_symbol("> ");
 
@@ -34,7 +35,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     // Help text
     let help_text = match &app.input_mode {
-        InputMode::Normal => "Enter: SSH | s: SFTP | m: Mosh | p: Broadcast | n: New | c: Copy ID | i: Edit | d: Delete | q: Quit",
+        InputMode::Normal => "Enter: SSH | s: SFTP | m: Mosh | p: Broadcast | n: New | e: Profile | c: Copy ID | i: Edit | d: Delete | q: Quit",
         InputMode::Adding(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
         InputMode::Editing(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
         InputMode::ConfirmDelete(_) => "y: Confirm Delete | n/Esc: Cancel",
@@ -43,6 +44,8 @@ pub fn ui(f: &mut Frame, app: &mut App) {
             BroadcastPhase::EnterCommand => "Enter: Next | Esc: Cancel",
             BroadcastPhase::SelectServers => "Space: Toggle | j/k: Move | Enter: Execute | Esc: Cancel",
         },
+        InputMode::SelectingProfile => "Enter: Load | n: New Profile | Esc: Cancel",
+        InputMode::CreatingProfile(_) => "Enter: Create | Esc: Cancel",
     };
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
@@ -92,6 +95,16 @@ pub fn ui(f: &mut Frame, app: &mut App) {
                 render_broadcast_server_select(f, &app.servers, &state.selected, state.cursor);
             }
         }
+    }
+
+    // Popup for Profile Selection
+    if let InputMode::SelectingProfile = &app.input_mode {
+        render_profile_selection(f, &app.profiles, &mut app.profile_state, &app.current_profile);
+    }
+
+    // Popup for Profile Creation
+    if let InputMode::CreatingProfile(name) = &app.input_mode {
+        render_profile_creation(f, name);
     }
 }
 
@@ -298,6 +311,78 @@ fn render_broadcast_server_select(f: &mut Frame, servers: &[Server], selected: &
     f.render_widget(list, inner[0]);
 
     let hint = Paragraph::new("Space: toggle | j/k: move | Enter: execute | Esc: cancel")
+        .style(Style::default().fg(Color::Gray));
+    f.render_widget(hint, inner[1]);
+}
+
+fn render_profile_selection(f: &mut Frame, profiles: &[String], state: &mut ListState, current: &str) {
+    let size = f.size();
+    let height = (profiles.len() as u16 + 4).min(size.height.saturating_sub(4));
+    let area = centered_fixed_rect(40, height, size);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Select Profile ")
+        .style(Style::default().fg(Color::Magenta));
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
+        .split(area);
+
+    let items: Vec<ListItem> = profiles
+        .iter()
+        .map(|p| {
+            let mut style = Style::default();
+            let content = if p == current {
+                style = style.fg(Color::Cyan).add_modifier(Modifier::BOLD);
+                format!("* {}", p)
+            } else {
+                p.clone()
+            };
+            ListItem::new(content).style(style)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        .highlight_symbol("> ");
+    f.render_stateful_widget(list, inner[0], state);
+
+    let hint = Paragraph::new("Enter: Load | n: New | Esc: Cancel")
+        .style(Style::default().fg(Color::Gray));
+    f.render_widget(hint, inner[1]);
+}
+
+fn render_profile_creation(f: &mut Frame, name: &str) {
+    let size = f.size();
+    let area = centered_fixed_rect(40, 7, size);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" New Profile ")
+        .style(Style::default().fg(Color::Magenta));
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([Constraint::Length(3), Constraint::Length(1)].as_ref())
+        .split(area);
+
+    let input = Paragraph::new(name)
+        .style(Style::default().fg(Color::Yellow))
+        .block(Block::default().borders(Borders::ALL).title("Profile Name"));
+    f.render_widget(input, inner[0]);
+
+    // Show cursor
+    f.set_cursor(inner[0].x + name.len() as u16 + 1, inner[0].y + 1);
+
+    let hint = Paragraph::new("Enter: Create | Esc: Cancel")
         .style(Style::default().fg(Color::Gray));
     f.render_widget(hint, inner[1]);
 }

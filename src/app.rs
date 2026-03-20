@@ -9,6 +9,8 @@ use crate::server::Server;
 struct AppState {
     #[serde(default)]
     last_connected: Option<String>,
+    #[serde(default)]
+    last_profile: Option<String>,
 }
 
 pub enum InputMode {
@@ -18,6 +20,8 @@ pub enum InputMode {
     ConfirmDelete(usize), // 存储要删除的服务器索引
     ShowMessage(String), // 显示提示信息
     BroadcastCommand(BroadcastState),
+    SelectingProfile,
+    CreatingProfile(String),
 }
 
 pub struct BroadcastState {
@@ -94,21 +98,70 @@ pub struct App {
     pub state: ListState,
     pub input_mode: InputMode,
     pub pending_g: bool,
-    config_path: PathBuf,
+    pub profiles: Vec<String>,
+    pub profile_state: ListState,
+    pub current_profile: String,
+    config_dir: PathBuf,
     state_path: PathBuf,
     last_connected: Option<String>,
 }
 
 impl App {
     pub fn new() -> Result<Self> {
-        let config_dir = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-        let app_config_dir = config_dir.join("sshx");
+        let config_dir_base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+        let app_config_dir = config_dir_base.join("sshx");
         if !app_config_dir.exists() {
             fs::create_dir_all(&app_config_dir)?;
         }
-        let config_path = app_config_dir.join("servers.json");
         let state_path = app_config_dir.join("state.json");
 
+        // Scan for profiles
+        let mut profiles = Vec::new();
+        if let Ok(entries) = fs::read_dir(&app_config_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
+                    let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                    if file_name != "state.json" {
+                        profiles.push(file_name.to_string());
+                    }
+                }
+            }
+        }
+        profiles.sort();
+        if profiles.is_empty() {
+            profiles.push("servers.json".to_string());
+        }
+
+        let app_state = Self::load_state(&state_path);
+        let current_profile = app_state.last_profile.clone().unwrap_or_else(|| "servers.json".to_string());
+        
+        // Ensure current profile is in the list
+        if !profiles.contains(&current_profile) {
+            profiles.push(current_profile.clone());
+            profiles.sort();
+        }
+
+        let mut app = Self {
+            servers: Vec::new(),
+            state: ListState::default(),
+            input_mode: InputMode::Normal,
+            pending_g: false,
+            profiles,
+            profile_state: ListState::default(),
+            current_profile: current_profile.clone(),
+            config_dir: app_config_dir,
+            state_path,
+            last_connected: app_state.last_connected,
+        };
+
+        app.load_profile(&current_profile)?;
+
+        Ok(app)
+    }
+
+    pub fn load_profile(&mut self, profile_name: &str) -> Result<()> {
+        let config_path = self.config_dir.join(profile_name);
         let mut servers: Vec<Server> = if config_path.exists() {
             let data = fs::read_to_string(&config_path)?;
             serde_json::from_str(&data).unwrap_or_else(|_| Vec::new())
@@ -116,11 +169,8 @@ impl App {
             Vec::new()
         };
 
-        let app_state = Self::load_state(&state_path);
-        let last_connected = app_state.last_connected;
-
         // Reorder: move last-connected server to the top
-        if let Some(ref key) = last_connected {
+        if let Some(ref key) = self.last_connected {
             if let Some(pos) = servers.iter().position(|s| Self::server_key(s) == *key) {
                 if pos > 0 {
                     let server = servers.remove(pos);
@@ -129,25 +179,21 @@ impl App {
             }
         }
 
-        let mut state = ListState::default();
-        if !servers.is_empty() {
-            state.select(Some(0));
+        self.servers = servers;
+        self.current_profile = profile_name.to_string();
+        self.state = ListState::default();
+        if !self.servers.is_empty() {
+            self.state.select(Some(0));
         }
 
-        Ok(Self {
-            servers,
-            state,
-            input_mode: InputMode::Normal,
-            pending_g: false,
-            config_path,
-            state_path,
-            last_connected,
-        })
+        let _ = self.save_state();
+        Ok(())
     }
 
     pub fn save(&self) -> Result<()> {
+        let config_path = self.config_dir.join(&self.current_profile);
         let data = serde_json::to_string_pretty(&self.servers)?;
-        fs::write(&self.config_path, data)?;
+        fs::write(config_path, data)?;
         Ok(())
     }
 
@@ -201,6 +247,40 @@ impl App {
         format!("{}@{}:{}", server.user, server.host, server.port)
     }
 
+    pub fn next_profile(&mut self) {
+        if self.profiles.is_empty() {
+            return;
+        }
+        let i = match self.profile_state.selected() {
+            Some(i) => {
+                if i >= self.profiles.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.profile_state.select(Some(i));
+    }
+
+    pub fn previous_profile(&mut self) {
+        if self.profiles.is_empty() {
+            return;
+        }
+        let i = match self.profile_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.profiles.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.profile_state.select(Some(i));
+    }
+
     fn load_state(state_path: &PathBuf) -> AppState {
         if state_path.exists() {
             fs::read_to_string(state_path)
@@ -215,6 +295,7 @@ impl App {
     fn save_state(&self) -> Result<()> {
         let app_state = AppState {
             last_connected: self.last_connected.clone(),
+            last_profile: Some(self.current_profile.clone()),
         };
         let data = serde_json::to_string_pretty(&app_state)?;
         fs::write(&self.state_path, data)?;

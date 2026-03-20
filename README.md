@@ -4,6 +4,7 @@
 
 ## Features
 
+- **Multiple Profiles**: Organize servers into different scenarios (e.g., Lab, Home, Cloud). Switch between them easily or create new ones.
 - **TUI Interface**: Built with `ratatui` for a smooth terminal experience.
 - **Manage Servers**: Add, edit, and delete server configurations easily.
 - **One-Key Connection**: Connect to your saved servers via `ssh`, `sftp`, or `mosh` with a single keypress.
@@ -61,10 +62,19 @@ Run `sshx` (if installed to PATH) or `cargo run`.
 | `s` | Connect via `sftp` |
 | `m` | Connect via `mosh` |
 | `p` | Broadcast command to multiple servers |
+| `e` | Open profile selection menu |
 | `n` | Add a new server |
 | `i` | Edit the selected server |
 | `c` | Copy SSH public key (`ssh-copy-id`) |
 | `d` | Delete the selected server (with confirmation) |
+
+**Profiles (`e`):**
+
+1. Press `e` to open the profile selection popup.
+2. Use `j`/`k` to select an existing profile (indicated by `*` if it is currently active).
+3. Press `Enter` to load the selected profile and switch your server list.
+4. Press `n` to create a new profile.
+5. Press `Esc` to cancel and return to the main server list.
 
 **Adding / Editing a Server:**
 
@@ -91,10 +101,12 @@ Run `sshx` (if installed to PATH) or `cargo run`.
 
 ## Configuration
 
-Server configurations are stored at:
+Server configurations are stored in your user configuration directory. Each profile is a `.json` file:
 
-- **Linux/macOS**: `~/.config/sshx/servers.json`
-- **Windows**: `%APPDATA%\sshx\servers.json`
+- **Linux/macOS**: `~/.config/sshx/*.json`
+- **Windows**: `%APPDATA%\sshx\*.json`
+
+By default, servers are stored in `servers.json`. The application state (last connected server, last profile used) is stored in `state.json`.
 
 ### Jump Host (Bastion Server)
 

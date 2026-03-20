@@ -56,8 +56,8 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
     loop {
         // Hide cursor in normal mode, show in input/edit mode
         match app.input_mode {
-            InputMode::Normal | InputMode::ConfirmDelete(_) | InputMode::ShowMessage(_) => terminal.hide_cursor()?,
-            InputMode::Adding(_) | InputMode::Editing(_) => terminal.show_cursor()?,
+            InputMode::Normal | InputMode::ConfirmDelete(_) | InputMode::ShowMessage(_) | InputMode::SelectingProfile => terminal.hide_cursor()?,
+            InputMode::Adding(_) | InputMode::Editing(_) | InputMode::CreatingProfile(_) => terminal.show_cursor()?,
             InputMode::BroadcastCommand(ref s) => match s.phase {
                 BroadcastPhase::EnterCommand => terminal.show_cursor()?,
                 BroadcastPhase::SelectServers => terminal.hide_cursor()?,
@@ -91,6 +91,13 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                         } else {
                             app.pending_g = true;
                         }
+                    }
+                    KeyCode::Char('e') => {
+                        // Enter profile selection mode
+                        let current = app.current_profile.clone();
+                        let idx = app.profiles.iter().position(|p| *p == current).unwrap_or(0);
+                        app.profile_state.select(Some(idx));
+                        app.input_mode = InputMode::SelectingProfile;
                     }
                     KeyCode::Char('n') => {
                         app.input_mode = InputMode::Adding(AddingState::new());
@@ -346,6 +353,42 @@ fn run_app<B: Backend + std::io::Write>(terminal: &mut Terminal<B>, app: &mut Ap
                         }
                         _ => {}
                     },
+                },
+                InputMode::SelectingProfile => match key.code {
+                    KeyCode::Esc => app.input_mode = InputMode::Normal,
+                    KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => app.next_profile(),
+                    KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => app.previous_profile(),
+                    KeyCode::Char('n') => {
+                        app.input_mode = InputMode::CreatingProfile(String::new());
+                    }
+                    KeyCode::Enter => {
+                        if let Some(idx) = app.profile_state.selected() {
+                            let profile = app.profiles[idx].clone();
+                            let _ = app.load_profile(&profile);
+                        }
+                        app.input_mode = InputMode::Normal;
+                    }
+                    _ => {}
+                },
+                InputMode::CreatingProfile(name) => match key.code {
+                    KeyCode::Esc => app.input_mode = InputMode::SelectingProfile,
+                    KeyCode::Char(c) => name.push(c),
+                    KeyCode::Backspace => { name.pop(); }
+                    KeyCode::Enter => {
+                        if !name.is_empty() {
+                            let mut profile_name = name.clone();
+                            if !profile_name.ends_with(".json") {
+                                profile_name.push_str(".json");
+                            }
+                            if !app.profiles.contains(&profile_name) {
+                                app.profiles.push(profile_name.clone());
+                                app.profiles.sort();
+                            }
+                            let _ = app.load_profile(&profile_name);
+                            app.input_mode = InputMode::Normal;
+                        }
+                    }
+                    _ => {}
                 },
             }
         }
