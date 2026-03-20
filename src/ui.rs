@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Clear, ListState},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Clear, ListState, Wrap},
     Frame,
 };
 
@@ -11,9 +11,35 @@ use crate::server::Server;
 pub fn ui(f: &mut Frame, app: &mut App) {
     let size = f.size();
 
+    // Determine help text based on current mode
+    let help_text = match &app.input_mode {
+        InputMode::Normal => "Enter: SSH | s: SFTP | m: Mosh | p: Broadcast | n: New | e: Profile | c: Copy ID | i: Edit | d: Delete | q: Quit",
+        InputMode::Adding(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
+        InputMode::Editing(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
+        InputMode::ConfirmDelete(_) => "y: Confirm Delete | n/Esc: Cancel",
+        InputMode::ShowMessage(_) => "Press Enter, Esc or Space to close",
+        InputMode::BroadcastCommand(s) => match s.phase {
+            BroadcastPhase::EnterCommand => "Enter: Next | Esc: Cancel",
+            BroadcastPhase::SelectServers => "Space: Toggle | j/k: Move | Enter: Execute | Esc: Cancel",
+        },
+        InputMode::SelectingProfile => "Enter: Load | n: New Profile | Esc: Cancel",
+        InputMode::CreatingProfile(_) => "Enter: Create | Esc: Cancel",
+    };
+
+    // Calculate needed height for help text based on width
+    // Inner width is size.width - 2 (borders)
+    let inner_width = size.width.saturating_sub(2);
+    let help_lines = if inner_width > 0 {
+        // Rough estimate of lines needed: total length / inner width + 1
+        (help_text.len() as u16 + inner_width - 1) / inner_width
+    } else {
+        1
+    };
+    let help_height = help_lines + 2; // +2 for borders
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
+        .constraints([Constraint::Min(0), Constraint::Length(help_height)].as_ref())
         .split(size);
 
     let items: Vec<ListItem> = app
@@ -33,23 +59,11 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     f.render_stateful_widget(list, chunks[0], &mut app.state);
 
-    // Help text
-    let help_text = match &app.input_mode {
-        InputMode::Normal => "Enter: SSH | s: SFTP | m: Mosh | p: Broadcast | n: New | e: Profile | c: Copy ID | i: Edit | d: Delete | q: Quit",
-        InputMode::Adding(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
-        InputMode::Editing(_) => "Enter: Save | Esc: Cancel | Tab: Next Field",
-        InputMode::ConfirmDelete(_) => "y: Confirm Delete | n/Esc: Cancel",
-        InputMode::ShowMessage(_) => "Press Enter, Esc or Space to close",
-        InputMode::BroadcastCommand(s) => match s.phase {
-            BroadcastPhase::EnterCommand => "Enter: Next | Esc: Cancel",
-            BroadcastPhase::SelectServers => "Space: Toggle | j/k: Move | Enter: Execute | Esc: Cancel",
-        },
-        InputMode::SelectingProfile => "Enter: Load | n: New Profile | Esc: Cancel",
-        InputMode::CreatingProfile(_) => "Enter: Create | Esc: Cancel",
-    };
+    // Help text with wrapping
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
-        .block(Block::default().borders(Borders::ALL).title(" Help "));
+        .block(Block::default().borders(Borders::ALL).title(" Help "))
+        .wrap(Wrap { trim: true });
     f.render_widget(help, chunks[1]);
 
     // Popup for Adding Server
